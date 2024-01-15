@@ -51,7 +51,7 @@ To get started with DJI Tools and Stuff, follow the steps below:
 
 ## License
 
-This project is licensed under the General Public License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the General Public License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
