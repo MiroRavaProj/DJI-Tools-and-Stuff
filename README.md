@@ -38,15 +38,15 @@ To get started with DJI Tools and Stuff, follow the steps below:
 
 1. Clone the repository: `git clone https://github.com/MiroRavaProj/DJI-Tools-and-Stuff.git`
 2. Navigate to the project directory: `cd DJI-Tools-and-Stuff`
-3. Open the folder with the source code and sobstitute the source code to the two EXEs in the main folder
+3. Open the folder with the source code and put the source code in the main folder
 
 ### Installation with .EXE file
 
-1. Download the .7z zipped package or simply download the entire github repository
-2. Extract the zip file (if you downloaded this way)
+1. Download the .exe release zipped package 
+2. Extract the zip file (self extracting .exe)
 3. Simply click the DJI_Image_Processor.exe file!
 
-#### Disclaimer: If the .exe doesn't work (or the .7z file is not downloaded) is probably because your antivirus detected the file as malicious, since it is a side project there isn't an associated certificate with this .exe file.
+#### Disclaimer: If the .exe doesn't work (or the .exe file is not downloaded) is probably because your antivirus detected the file as malicious, since it is a side project there isn't an associated certificate with this .exe file.
 
 
 ## License
