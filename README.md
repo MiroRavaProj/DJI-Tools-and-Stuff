@@ -46,7 +46,7 @@ To get started with DJI Tools and Stuff, follow the steps below:
 2. Extract the zip file (if you downloaded this way)
 3. Simply click the DJI_Image_Processor.exe file!
 
-#### Disclaimer: If the .exe doesn't work (or the .7z file is not downloaded) is probably because your antivirus detected the file as malitious, since it is a side project there isn't an associated certificate with this .exe file.
+#### Disclaimer: If the .exe doesn't work (or the .7z file is not downloaded) is probably because your antivirus detected the file as malicious, since it is a side project there isn't an associated certificate with this .exe file.
 
 
 ## License
