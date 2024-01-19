@@ -89,25 +89,47 @@ def process_one_th_picture(ir_img_path, em, dist, hu, refl):
 
 
 def parse_srt_file(srt_path):
-    latitudes = []
-    longitudes = []
-    altitudes = []
-
     with open(srt_path, 'r') as file:
         srt_content = file.read()
 
-    pattern = r'\[latitude: ([\d.-]+)\] \[longitude: ([\d.-]+)\] \[altitude: ([\d.-]+)\]'
+    altitudes = []
+    latitudes = []
+    longitudes = []
+
+    pattern = (
+        r"(?:latitude:\s*([+-]?\d+(?:\.\d+)?).*?longitude:\s*([+-]?\d+(?:\.\d+)?).*?(?:abs_alt|altitude):\s*([+-]?\d+(?:\.\d+)?))|"
+        r"(?:GPS\s*\(\s*([+-]?\d+(?:\.\d+)?),\s*([+-]?\d+(?:\.\d+)?),\s*([+-]?\d+(?:\.\d+)?))|"
+        r"(?:\[latitude\s*:\s*([+-]?\d+(?:\.\d+)?)\]\s*\[longtitude\s*:\s*([+-]?\d+(?:\.\d+)?)\])"
+    )
+    if "abs_alt" in srt_content:
+        is_abs_alt = True
+    else:
+        is_abs_alt = False
+
     matches = re.findall(pattern, srt_content)
+    if len(matches) == 0:
+        latitudes = None
+        longitudes = None
+        altitudes = None
     for match in matches:
-        latitude = float(match[0])
-        longitude = float(match[1])
-        altitude = float(match[2])
+        if match[0]:  # Original format
+            latitude = float(match[0])
+            longitude = float(match[1])
+            altitude = float(match[2])
+        elif match[3]:  # GPS format without 'M'
+            latitude = float(match[3])
+            longitude = float(match[4])
+            altitude = float(match[5]) if match[5] else None
+        else:  # GPS format with 'M'
+            latitude = float(match[6])
+            longitude = float(match[7])
+            altitude = 0
 
         altitudes.append(altitude)
         latitudes.append(latitude)
         longitudes.append(longitude)
 
-    return latitudes, longitudes, altitudes
+    return latitudes, longitudes, altitudes, is_abs_alt
 
 
 # Convert the latitude and longitude to the required format (Rational)
@@ -119,7 +141,7 @@ def degrees_to_rational(number):
     return [(degrees, 1), (minutes, 1), (seconds, 100)]
 
 
-if sys.argv[2] == "0":
+if sys.argv[2] == "2":
     print("Elaborating Videos with Timestamps if present:")
 
     for videoPath in files1:
@@ -129,11 +151,13 @@ if sys.argv[2] == "0":
             srt_path = os.path.join(sys.argv[1], video_name + ".srt")
             capture = cv2.VideoCapture(video_path)
             frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-            frames_to_extract = range(0, frame_count - 1, int(float(sys.argv[3]) * capture.get(cv2.CAP_PROP_FPS)))
+            frames_to_extract = range(0, frame_count - 1, int(float(sys.argv[4]) * capture.get(cv2.CAP_PROP_FPS)))
             try:
-                latitudes, longitudes, altitudes = parse_srt_file(srt_path)
+                latitudes, longitudes, altitudes, is_abs_alt = parse_srt_file(srt_path)
+                if latitudes is None and longitudes is None and altitudes is None:
+                    continue
             except FileNotFoundError:
-                print(f"WARNING ---> Skipping Video: {video_name} ---> NO .SRT File found")
+                print(f"WARNING ---> Skipping Video: {video_name} ---> NO valid .SRT File found")
                 continue
             for frame_index in frames_to_extract:
                 capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
@@ -145,7 +169,10 @@ if sys.argv[2] == "0":
                     try:
                         frame_latitude = latitudes[frame_index]
                         frame_longitude = longitudes[frame_index]
-                        frame_altitude = altitudes[frame_index] + int(sys.argv[2])
+                        if is_abs_alt:
+                            frame_altitude = altitudes[frame_index]
+                        else:
+                            frame_altitude = altitudes[frame_index] + int(sys.argv[3])
                     except Exception as e:
                         print(f"Image not processed because ---> {e}")
                         continue
@@ -193,7 +220,7 @@ if sys.argv[2] == "0":
                     print(f"Error extracting frame at index {frame_index}")
 
             capture.release()
-
+elif sys.argv[2] == "3":
     print("Elaborating Images:")
 
     for imagePath in files1:
@@ -202,7 +229,7 @@ if sys.argv[2] == "0":
             full_imagePath = os.path.join(sys.argv[1], imagePath)
             with open(full_imagePath, 'rb') as image_file:
                 img = exif.Image(image_file)
-                img.gps_altitude = img.gps_altitude + int(sys.argv[2])
+                img.gps_altitude = img.gps_altitude + int(sys.argv[3])
             ext = full_imagePath[-4:]
             tempPath = full_imagePath[:-4]
             with open(f"{tempPath}_mod{ext}", 'wb') as test_image_file:
@@ -210,7 +237,7 @@ if sys.argv[2] == "0":
             os.remove(full_imagePath)
             print(f"{percentage:.2f}%  --> Changed GPS Altitude of: {full_imagePath[-12:-4]}")
     print("100.00% --> Done!!")
-else:
+elif sys.argv[2] == "1":
     for imagePath in files:
         percentage += 100 / len(files)
         full_imagePath = imagePath
