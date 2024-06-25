@@ -167,7 +167,7 @@ def process_video_frames(videoPath, input_directory, altitude_offset, time_inter
             print(f"WARNING ---> Skipping Video: {video_name} ---> NO valid .SRT File found for {video_name} (be shure to have the same name for both files)")
             return
         os.makedirs(f'{input_directory}/{video_name}_frames', exist_ok=True)
-        process = subprocess.Popen(['ffmpeg_local.exe', '-i', video_path, '-vf', f'fps={time_interval}', '-q:v', '1', f'{input_directory}/{video_name}_frames/{video_name}_frame_%d.{img_format}'], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE , universal_newlines=True)
+        process = subprocess.Popen(['ffmpeg.exe', '-i', video_path, '-vf', f'fps={time_interval}', '-q:v', '1', f'{input_directory}/{video_name}_frames/{video_name}_frame_%d.{img_format}'], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE , universal_newlines=True)
         frame_pattern = re.compile(r"frame=\s*(\d+)")
     
         while True:
