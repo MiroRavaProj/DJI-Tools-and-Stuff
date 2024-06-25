@@ -6,11 +6,19 @@ This project aims to consolidate various DJI-related tools, including thermal co
 
 - **Thermal Conversion Tools:** Convert thermal imagery captured by DJI devices into various formats.
 - **Geotagged Frame Extraction:** Extract frames from video files with geotag information for mapping applications.
+- **Altitude Offset Adjustment Tool:** Enables setting an offset to the altitude of images, useful for correcting altitude discrepancies in geotagged photos or applying uniform adjustments across a batch of images.
 - **New Tools Coming Soon!!**
 
 ## DJI Image Processor .EXE
 
 For user convenience, we provide a packaged executable named `DJI_Image_Processor`. This executable includes the entire suite of DJI Tools and Stuff, making it easier for users to utilize the various functionalities without the need to set up dependencies manually, check out the installation steps for the .exe below!
+
+## NEW VERSION!!
+
+### Version 1.4 just released!
+Added descriptions of inputs and parameters,
+Fixed many bugs, 
+Improved Speed and usability.
 
 ## How to Contribute
 
@@ -36,9 +44,18 @@ To get started with DJI Tools and Stuff, follow the steps below:
 
 ### Installation from Github
 
+Preliminary Steps:
+1. Download FFmpeg as a local executable file from [FFmpeg's official website](https://ffmpeg.org/download.html).
+2. Place the downloaded `ffmpeg.exe` file in the main folder of the project.
+
+Installation Steps:
 1. Clone the repository: `git clone https://github.com/MiroRavaProj/DJI-Tools-and-Stuff.git`
 2. Navigate to the project directory: `cd DJI-Tools-and-Stuff`
 3. Open the folder with the source code and put the source code in the main folder
+
+### Running the Program
+
+To run the program, start `DJI_Image_Processor.pyw` by double-clicking on the file or executing it from a command line interface.
 
 ### Installation with .EXE file
 

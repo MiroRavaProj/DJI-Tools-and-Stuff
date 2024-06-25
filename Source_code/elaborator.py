@@ -16,7 +16,6 @@ import exif
 from fractions import Fraction
 import subprocess
 from PIL import Image
-import cv2
 
 files = [os.path.normpath(os.path.join(dirpath, f)) for (dirpath, dirnames, filenames) in os.walk(sys.argv[1]) for f in
          filenames]
@@ -76,7 +75,9 @@ def process_one_th_picture(ir_img_path, em, dist, hu, refl):
                 img_thermal.save(dest_path, exif=exif)
             else:
                 img_thermal.save(dest_path)
-                subprocess.run(["exiftool.exe", "-TagsFromFile", ir_img_path, "-IPTC:all", "-exif:all","-xmp:all","-jfif:all","-all:all>all:all", dest_path, "-overwrite_original"])
+                subprocess.run(
+                    ["exiftool.exe", "-TagsFromFile", ir_img_path, "-IPTC:all", "-exif:all", "-xmp:all", "-jfif:all",
+                     "-all:all>all:all", dest_path, "-overwrite_original"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             os.remove(new_raw_path)
             print(f" --> Converted from R-JPEG to Tiff : {filename}")
             if sys.argv[7] == "0":
@@ -141,85 +142,106 @@ def degrees_to_rational(number):
     return [(degrees, 1), (minutes, 1), (seconds, 100)]
 
 
+def process_video_frames(videoPath, input_directory, altitude_offset, time_interval,img_format):
+    """
+    Processes video frames to extract images at specified intervals, updates their EXIF data with GPS information from a corresponding SRT file.
+
+    Parameters:
+    videoPath (str): The filename of the video.
+    input_directory (str): The directory where the video and SRT files are located.
+    altitude_offset (int): The altitude offset to be added if the altitude is not absolute.
+    time_interval (float): The interval between frames to extract, as a multiplier of the video's FPS.
+    parse_srt_file (function): A function to parse the SRT file and return GPS data.
+    degrees_to_rational (function): A function to convert GPS coordinates from degrees to rational numbers for EXIF data.
+    """
+    if videoPath[-4:] in [".MOV", ".mov", ".MP4", ".mp4"]:
+        video_path = os.path.join(input_directory, videoPath)
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        srt_path = os.path.join(input_directory, video_name + ".srt")
+        try:
+            latitudes, longitudes, altitudes, is_abs_alt = parse_srt_file(srt_path)
+            if latitudes is None and longitudes is None and altitudes is None:
+                print(f"WARNING ---> Skipping Video: {video_name} ---> NO valid GPS data found in the .SRT file, contact@miro-rava.com for help and .srt file to be added")
+                return
+        except FileNotFoundError:
+            print(f"WARNING ---> Skipping Video: {video_name} ---> NO valid .SRT File found for {video_name} (be shure to have the same name for both files)")
+            return
+        os.makedirs(f'{input_directory}/{video_name}_frames', exist_ok=True)
+        process = subprocess.Popen(['ffmpeg_local.exe', '-i', video_path, '-vf', f'fps={time_interval}', '-q:v', '1', f'{input_directory}/{video_name}_frames/{video_name}_frame_%d.{img_format}'], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE , universal_newlines=True)
+        frame_pattern = re.compile(r"frame=\s*(\d+)")
+    
+        while True:
+            output = process.stderr.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                # Match frame number
+                frame_match = frame_pattern.search(output)
+                if frame_match:
+                    frame_number = int(frame_match.group(1))
+                    sys.stdout.write(f'\rExtracted frame: {frame_number} from {video_name}')
+                    sys.stdout.flush()
+    
+        # Wait for the process to complete
+        process.wait()
+
+        print("\nFrame extraction completed. Wait for GPS data to be added.")
+
+        total_coordinates = len(latitudes)  # assuming latitudes, longitudes, and altitudes are of the same length
+        print(f'{total_coordinates} GPS coordinates found in the .SRT file.')
+        step_size = total_coordinates / frame_number
+
+        #for i in range(0, total_coordinates, step_size):
+        frame_counter = 0
+        frame_index=1
+        while frame_index <= frame_number:
+            i = round(frame_counter)
+            frame_path = os.path.abspath(os.path.join(input_directory, f'{video_name}_frames/{video_name}_frame_{frame_index}.{img_format}'))
+
+            try:
+                frame_latitude = latitudes[i]
+                frame_longitude = longitudes[i]
+                if is_abs_alt:
+                    frame_altitude = altitudes[i]
+                else:
+                    frame_altitude = altitudes[i] + float(altitude_offset)
+
+                if frame_latitude is not None and frame_longitude is not None and frame_altitude is not None:
+                    image = Image.open(frame_path)
+                    exif_dict = piexif.load(frame_path)
+
+                    new_lat_rational = degrees_to_rational(frame_latitude)
+                    new_lon_rational = degrees_to_rational(frame_longitude)
+
+                    exif_dict["GPS"] = {
+                        piexif.GPSIFD.GPSLatitudeRef: 'N' if frame_latitude >= 0 else 'S',
+                        piexif.GPSIFD.GPSLatitude: new_lat_rational,
+                        piexif.GPSIFD.GPSLongitudeRef: 'E' if frame_longitude >= 0 else 'W',
+                        piexif.GPSIFD.GPSLongitude: new_lon_rational,
+                        piexif.GPSIFD.GPSAltitude: Fraction.from_float(frame_altitude).limit_denominator().as_integer_ratio(),
+                        piexif.GPSIFD.GPSAltitudeRef: 0,
+                    }
+
+                    exif_bytes = piexif.dump(exif_dict)
+                    image.save(frame_path, exif=exif_bytes)
+                    print(f"GPS data added to frame: {video_name}_frame_{frame_index}")
+                else:
+                    print(f"No GPS data found for frame: {frame_path}")
+            except Exception as e:
+                print(f"Image not processed because ----> {e}")
+            frame_index += 1
+            frame_counter += step_size
+
+
 if sys.argv[2] == "2":
     print("Elaborating Videos with Timestamps if present:")
-
+    if sys.argv[5] == "0":
+        img_form = "jpg"
+    else:
+        img_form = "png"
     for videoPath in files1:
-        if videoPath[-4:] in [".MOV", ".mov", ".MP4", ".mp4"]:
-            video_path = os.path.join(sys.argv[1], videoPath)
-            video_name = os.path.splitext(os.path.basename(video_path))[0]
-            srt_path = os.path.join(sys.argv[1], video_name + ".srt")
-            capture = cv2.VideoCapture(video_path)
-            frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-            frames_to_extract = range(0, frame_count - 1, int(float(sys.argv[4]) * capture.get(cv2.CAP_PROP_FPS)))
-            try:
-                latitudes, longitudes, altitudes, is_abs_alt = parse_srt_file(srt_path)
-                if latitudes is None and longitudes is None and altitudes is None:
-                    continue
-            except FileNotFoundError:
-                print(f"WARNING ---> Skipping Video: {video_name} ---> NO valid .SRT File found")
-                continue
-            for frame_index in frames_to_extract:
-                capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-                success, frame = capture.read()
-
-                if success:
-                    frame_path = os.path.normpath(os.path.join(sys.argv[1], f'{video_name}_frame_{frame_index}.jpg'))
-                    cv2.imwrite(frame_path, frame)
-                    try:
-                        frame_latitude = latitudes[frame_index]
-                        frame_longitude = longitudes[frame_index]
-                        if is_abs_alt:
-                            frame_altitude = altitudes[frame_index]
-                        else:
-                            frame_altitude = altitudes[frame_index] + int(sys.argv[3])
-                    except Exception as e:
-                        print(f"Image not processed because ---> {e}")
-                        continue
-
-                    if frame_latitude is not None and frame_longitude is not None and frame_altitude is not None:
-                        try:
-                            # Open the image file
-                            image = Image.open(frame_path)
-
-                            # Get the existing EXIF data
-                            exif_dict = piexif.load(frame_path)
-
-                            # Preserve existing GPS data
-                            gps_info = exif_dict.get("GPS", {})
-                            altitude_ref = gps_info.get(piexif.GPSIFD.GPSAltitudeRef, 0)
-                            gps_version = exif_dict.get(piexif.GPSIFD.GPSVersionID, (2, 3, 0, 0))
-
-                            new_lat_rational = degrees_to_rational(frame_latitude)
-                            new_lon_rational = degrees_to_rational(frame_longitude)
-
-                            # Update the GPS data in the EXIF metadata
-                            exif_dict["GPS"] = {
-                                piexif.GPSIFD.GPSLatitudeRef: 'N' if frame_latitude >= 0 else 'S',
-                                piexif.GPSIFD.GPSLatitude: new_lat_rational,
-                                piexif.GPSIFD.GPSLongitudeRef: 'E' if frame_longitude >= 0 else 'W',
-                                piexif.GPSIFD.GPSLongitude: new_lon_rational,
-                                piexif.GPSIFD.GPSVersionID: (2, 3, 0, 0),
-                                piexif.GPSIFD.GPSAltitude: Fraction.from_float(
-                                    frame_altitude).limit_denominator().as_integer_ratio(),
-                                piexif.GPSIFD.GPSAltitudeRef: 0,
-                            }
-
-                            # Encode the EXIF data and save it back to the image
-                            exif_bytes = piexif.dump(exif_dict)
-                            image.save(frame_path, exif=exif_bytes)
-
-                            print(f'{video_name}_frame_{frame_index}.jpg')
-                        except Exception as e:
-                            print(f"Image not processed because ---> {e}")
-
-
-                    else:
-                        print(f"No GPS data found for frame: {frame_path}")
-                else:
-                    print(f"Error extracting frame at index {frame_index}")
-
-            capture.release()
+        process_video_frames(videoPath, sys.argv[1], sys.argv[3], sys.argv[4], img_form)
+    print('Done', flush=True)
 elif sys.argv[2] == "3":
     print("Elaborating Images:")
 
